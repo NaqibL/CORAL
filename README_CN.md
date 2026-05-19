@@ -1,9 +1,9 @@
 
 <div align="center">
 
-<img src="assets/logo.png" alt="CORAL" width="360">
+<img src="assets/logo.png" alt="CORAL logo —— 多 Agent 自主编程基础设施" width="360">
 
-### **一键启动智能体群组，共享知识，无限进化**
+## **一键启动智能体群组，共享知识，无限进化**
 
 <p>
   <img src="assets/mit_logo.png" alt="MIT" height="50">
@@ -13,295 +13,62 @@
   <img src="assets/stanford.png" alt="Stanford" height="50">
 </p>
 
+[![Paper](https://img.shields.io/badge/Paper-arXiv%3A2604.01658-B31B1B.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.01658v1)
 [![Blog](https://img.shields.io/badge/Blog-CORAL-FF6B6B.svg?logo=hashnode&logoColor=white)](https://human-agent-society.github.io/CORAL/)
 [![Apache 2.0 License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://python.org)
-[![uv](https://img.shields.io/badge/uv-package%20manager-5C4EE5.svg)](https://docs.astral.sh/uv/)
 
 [English](README.md) | **中文**
 
 </div>
 
-
 <p align="center">
-<a href="#安装">安装</a> · <a href="#支持的-agent">支持的 Agent</a> · <a href="#使用">使用</a> · <a href="#工作原理">工作原理</a> · <a href="#快速上手">快速上手</a> · <a href="#cli-命令">CLI 命令</a> · <a href="#示例">示例</a> · <a href="#许可证">许可证</a>
+<a href="#安装">安装</a> · <a href="#支持的-agent">支持的 Agent</a> · <a href="#工作原理">工作原理</a> · <a href="#示例">示例</a> · <a href="https://docs.coralxyz.com/">文档</a> · <a href="https://arxiv.org/abs/2604.01658v1">论文</a>
 </p>
 
-**CORAL** 是一套用于构建**自主 AI Agent 组织**的基础设施，Agent 们持续运行实验、共享知识、不断进化出更优方案。只需提供代码库和评分脚本，Coral 即可完成剩余工作：隔离工作空间、安全评估、持久化共享知识，以及多 Agent 协作驱动持续进化。原生集成 Claude Code、Codex、Cursor Agent、Kiro、OpenCode 等主流编程 Agent。
+**CORAL** 是用于构建**自主 AI Agent 组织**的基础设施 —— Agent 持续运行实验、共享知识、不断进化。只需提供代码库和评分脚本，CORAL 负责其余的一切：隔离工作空间、安全评估、持久共享状态、多 Agent 协作。原生集成 Claude Code、OpenCode、Codex、Cursor Agent、Kiro。
 
-想要自我进化的 AI，又不想折腾配置？试试 Coral。
+### 🔥 News
 
+- **[2026-04-24]** 新增 Rubric 评审 —— 两个开箱即用的 LLM 评审 grader 包，专为开放式任务（报告、备忘、法律分析）设计。详见 [Rubric Judges 文档](https://docs.coralxyz.com/guides/rubric-judge)。
+- [更多历史动态 →](https://docs.coralxyz.com/blog)
 
-
-### 🔥 News!
-
-- **[2026-04-24]** 新增 **Rubric 评审 (Rubric Judges)** —— 两个开箱即用的 LLM 评审 grader 包，专为开放式任务（报告、备忘、法律分析等）设计：静态评审准则 (`race_japan_grader`) 与可自演进的动态准则 (`apex_judge`)，均由 Claude Code 作为评审代理执行。详见 [Rubric Judges 文档](docs/content/docs/guides/rubric-judge.mdx) 以及新增的 `examples/race-japan-elderly/`、`examples/apex-eggshell-skull/`、`examples/apex-frontier-bu/` 任务。
-- **[2026-03-18]** CORAL 正式发布！点击查看[Blog](https://human-agent-society.github.io/CORAL/)。
-
-![Demo](assets/demo.gif)
+![CORAL 多 Agent 自主编程演示 —— 多个编程 Agent 在独立 git worktree 中并行运行,通过共享状态目录交换知识](assets/demo.gif)
 
 ### 安装
-
-**一行命令 —— 全局安装 `coral`，在任意目录下都可直接调用：**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Human-Agent-Society/CORAL/main/install.sh | sh
 ```
 
-该脚本会先检查并按需安装 [`uv`](https://github.com/astral-sh/uv)，然后通过 `uv tool install` 将 `coral` 可执行文件放入 `~/.local/bin`。如需指定版本,设置 `CORAL_VERSION=v0.5.0`(支持任意 git tag/分支/commit)。
-
-<details>
-<summary>手动安装（不使用 curl 管道）</summary>
+通过 `uv tool install` 全局安装 `coral`。如需指定版本，设置 `CORAL_VERSION=v0.5.0`。手动安装、开发模式、前置依赖等详见[安装文档](https://docs.coralxyz.com/getting-started/installation)。
 
 ```bash
-# 已安装 uv,只需一条命令:
-uv tool install git+https://github.com/Human-Agent-Society/CORAL.git
-
-# 若未安装 uv,先安装 uv:
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-</details>
-
-<details>
-<summary>参与 CORAL 开发（clone + 可编辑安装）</summary>
-
-```bash
-git clone https://github.com/Human-Agent-Society/CORAL.git
-cd CORAL
-uv sync                       # （添加 --extra ui 包含看板依赖；--extra dev 包含测试工具）
-uv run coral --help           # 开发模式下需要加 `uv run` 前缀
-```
-
-</details>
-
-验证安装：
-
-```bash
-coral --version
+coral init my-task                       # 生成任务模板
+cd my-task && coral start -c task.yaml   # 启动 Agent
 ```
 
 ### 支持的 Agent
 
-CORAL 支持任何可以作为子进程运行并通过终端交互的编程 Agent。目前支持：
+| Agent | `agents.runtime` |
+|-------|------------------|
+| [Claude Code](https://github.com/anthropics/claude-code) —— 默认 | `claude_code` |
+| [Codex](https://github.com/openai/codex) | `codex` |
+| [Cursor Agent](https://cursor.com/docs/cli/overview) | `cursor` |
+| [Kiro](https://kiro.dev) | `kiro` |
+| [OpenCode](https://github.com/opencode-ai/opencode) | `opencode` |
 
-| Agent | 说明 |
-|-------|------|
-| [**Claude Code**](https://github.com/anthropics/claude-code) | Anthropic 的 Agentic 编程工具——默认且测试最充分的运行时 |
-| [**Codex**](https://github.com/openai/codex) | OpenAI 的开源编程 Agent |
-| [**Cursor Agent**](https://cursor.com/docs/cli/overview) | Cursor 的无头 `cursor-agent` CLI |
-| [**Kiro**](https://kiro.dev) | Kiro 的 `kiro-cli` Agent（AWS 托管） |
-| [**OpenCode**](https://github.com/opencode-ai/opencode) | 开源终端 AI 编程 Agent |
-
-> [!TIP]
-> 在使用 CORAL 之前，请确保已完整配置好你计划使用的 Agent：
->
-> - **安装 Agent：** 按照对应 Agent 的官方安装说明进行安装（如 Claude Code、Codex、OpenCode），可能涉及安装包、配置可执行文件或脚本。
-> - **身份验证：** 提前登录并完成 Agent 的身份验证，确保其在 CLI 模式下不会弹出凭据请求。按照 Agent 文档配置所需的环境变量、配置文件或认证密钥。
-> - **权限设置：** 通过 Agent 的配置文件（如 Claude Code 的 `~/.claude/settings.json`）配置权限，控制 Agent 可以使用的工具、访问的路径或执行的操作。
->
-> *CORAL 不负责 Agent 的安装或身份验证。如果底层 Agent 无法启动或未正确完成认证，基础设施将无法正常运行。*
-
-在任务配置中指定 Agent（参见 <a href="#3-配置任务">配置任务</a>）：
-
-```yaml
-agents:
-  runtime: claude_code   # 或 "codex"、"cursor"、"kiro"、"opencode"
-  count: 3
-  model: opus  
-
-```
-
-### 使用
-
-```bash
-# 启动
-uv run coral start --config examples/kernel_builder/task.yaml
-
-# 停止和恢复
-uv run coral stop                                      # 暂停
-uv run coral resume                                    # 继续
-
-# 监控进度
-uv run coral ui                                        # 打开 Web 看板
-```
+每个 Agent 需自行安装并完成认证。各运行时的详细配置（含[ LiteLLM Gateway](https://docs.coralxyz.com/guides/gateway) 自定义模型代理）见 [Agent 运行时文档](https://docs.coralxyz.com/guides/agent-runtimes)。
 
 ### 工作原理
 
 <p align="center">
-  <img src="assets/coral_diagram_trans.jpg" alt="CORAL Architecture Diagram" width="800">
+  <img src="assets/coral_diagram_trans.jpg" alt="CORAL 架构图:多个编程 Agent 运行在隔离的 git worktree 中,通过 .coral/public/ 共享状态,由 grader 守护进程评分" width="800">
 </p>
 
-每个 Agent 跑在自己的 git worktree 分支里。共享状态（历史记录、笔记、技能）放在 `.coral/public/`，软链到所有 worktree —— 零开销，实时互通。后台管理器盯着新提交，可以通过心跳机制打断 Agent 并注入指令（比如"回顾一下"、"整理技能"）。
+每个 Agent 跑在自己的 git worktree 里。共享状态（历史记录、笔记、技能）放在 `.coral/public/`，软链到所有 worktree —— Agent 实时看到彼此的工作。Grader 守护进程为每次提交打分。后台管理器通过心跳机制打断 Agent 并注入指令（`reflect`、`consolidate`、`pivot`）。
 
-| 概念 | 说明 |
-|------|------|
-| **Agent = 优化器** | Claude Code / Codex / OpenCode 子进程，各占一个 git worktree |
-| **共享状态** | `.coral/` 存放历史记录、笔记和技能，软链到每个 worktree |
-| **Eval 循环** | Agent 调 `uv run coral eval -m "..."` 一步完成暂存 + 提交 + 打分 |
-| **CLI 调度** | 17+ 条命令：`start`、`stop`、`status`、`eval`、`log`、`ui` 等 |
-| **Web 看板** | `uv run coral ui` —— 实时排行榜、diff 对比、Agent 监控 |
-
-### 快速上手
-
-以一个完整的例子来演示：多个 Agent 持续优化 **100 城市旅行商问题（TSP）**。
-
-#### 1. 写初始代码
-
-初始代码（seed）是 Agent 迭代优化的起点。创建工作目录：
-
-```bash
-mkdir -p examples/tsp/{seed,eval}
-```
-
-然后创建一个最简初始方案（你也可以选择从空开始，虽然这可能会让 Agent 的工作更具挑战性）：
-
-```python
-# examples/tsp/seed/solution.py
-import random
-
-# 在此重述问题，因为 Agent 无法读取 `grader.py` 的内容
-random.seed(42)
-CITIES = [(random.random(), random.random()) for _ in range(100)]
-
-# 最简方案：按编号顺序访问 (0, 1, 2, ..., 99)
-for i in range(len(CITIES)):
-    print(i)
-```
-
-#### 2. 写评分器
-
-继承 `TaskGrader`，实现 `evaluate()` 方法。基类提供两个辅助方法：`self.run_program(filename)` 在子进程中运行 Agent 代码库里的文件，返回 `CompletedProcess`（含 `.stdout`、`.stderr`、`.returncode`）；`self.fail(reason)` 记录失败并返回 `-inf` 作为得分：
-
-```python
-# examples/tsp/eval/grader.py
-import math
-import random
-from coral.grader import TaskGrader, ScoreBundle
-
-# 保持与 `solution.py` 中的问题描述一致
-random.seed(42)
-CITIES = [(random.random(), random.random()) for _ in range(100)]
-
-class Grader(TaskGrader):
-    def evaluate(self) -> float | ScoreBundle:
-        try:
-            result = self.run_program("solution.py")  # 运行 solution.py，返回 CompletedProcess
-            order = [int(x) for x in result.stdout.strip().split("\n")]
-            assert sorted(order) == list(range(len(CITIES)))
-            dist = sum(
-                math.dist(CITIES[order[i]], CITIES[order[(i + 1) % len(order)]])
-                for i in range(len(order))
-            )
-            return -dist  # 路线越短，得分越高
-        except Exception as e:
-            return self.fail(str(e))  # 记录失败并返回 -inf
-```
-
-初始方案按编号顺序访问，得分约 `-58.02`。Agent 会尝试最近邻、2-opt、模拟退火等策略寻找更短路线。100 个城市的穷举搜索完全不可行（99! 种排列），因此 Agent 必须发现并运用真正的优化启发式算法。
-
-#### 3. 配置任务
-
-把配置指向初始代码和评分器：
-
-```yaml
-# examples/tsp/task.yaml
-task:
-  name: tsp
-  description: |
-    求 100 个城市的最短往返路线。坐标由 `solution.py` 中固定种子随机生成，
-    请勿修改种子或 CITIES 的生成方式！
-
-    solution.py 向 stdout 输出 100 个整数（0–99），每行一个，
-    表示访问顺序，每个城市恰好出现一次。
-    评分器计算往返欧氏距离，返回 -distance 作为得分（越短越高）。
-
-grader:
-  # 快速开始走自动发现的 eval/grader.py（会触发 DeprecationWarning）。
-  # 生产任务建议把 grader 打包,改用 entrypoint:
-  #   entrypoint: "tsp_grader.grader:Grader"
-  #   setup: ["uv pip install -e ./grader"]
-  # 迁移指南见 docs/guides/custom-grader。
-  timeout: 300
-
-agents:
-  count: 1
-  runtime: claude_code  # 或 codex、cursor、kiro、opencode
-  model: claude-sonnet-4-6
-  max_turns: 200  # Agent 重启前的最大轮数，别担心 Coral 会一直运行直到你停止
-
-workspace:
-  results_dir: "./results"  # 相对于你的 $PWD
-  repo_path: "./examples/tsp/seed"  # 相对于你的 $PWD
-```
-
-#### 4. 跑起来
-
-```bash
-uv run coral start --config examples/tsp/task.yaml  # 随后你会在 tmux 会话 `coral-tsp` 中看到 Coral
-uv sync --extra ui && uv run coral ui          # 打开 Web 看板，默认运行在 8420 端口
-uv run coral status      # 看排行榜
-uv run coral log         # 翻记录
-uv run coral stop        # 收工
-```
-
-### CLI 命令
-
-
-| 命令 | 说明 |
-|------|------|
-| `uv run coral init <name>` | 新建任务脚手架 |
-| `uv run coral validate <name>` | 测试评分器 |
-| `uv run coral start -c task.yaml` | 启动 Agent |
-| `uv run coral resume` | 恢复上次运行 |
-| `uv run coral stop` | 停止全部 Agent |
-| `uv run coral status` | Agent 状态 + 排行榜 |
-| `uv run coral log` | 排行榜（前 20） |
-| `uv run coral log -n 5 --recent` | 最近的记录 |
-| `uv run coral log --search "关键词"` | 搜索记录 |
-| `uv run coral show <hash>` | 记录详情 + diff |
-| `uv run coral notes` | 浏览笔记 |
-| `uv run coral skills` | 浏览技能 |
-| `uv run coral runs` | 列出所有运行 |
-| `uv run coral ui` | Web 看板 |
-| `uv run coral eval -m "描述"` | 暂存 + 提交 + 评估（Agent 调用）|
-| `uv run coral diff` | 看未提交的改动 |
-| `uv run coral revert` | 撤销上次提交 |
-| `uv run coral checkout <hash>` | 回退到指定记录 |
-| `uv run coral heartbeat` | 查看/修改心跳动作 |
-
-
-### 项目结构
-
-
-```
-coral/
-├── types.py             # Task, Score, ScoreBundle, Attempt
-├── config.py            # YAML 配置加载
-├── agent/
-│   ├── manager.py       # 多 Agent 生命周期
-│   └── runtime.py       # Claude Code / Codex / Cursor Agent / Kiro / OpenCode 子进程
-├── workspace/
-│   └── setup.py         # Worktree 创建、hook、软链
-├── grader/
-│   ├── protocol.py      # GraderInterface 协议
-│   ├── base.py          # BaseGrader（_make_score, _make_bundle）
-│   ├── task_grader.py   # TaskGrader 任务评分基类
-│   ├── loader.py        # 评分器发现与加载
-│   └── builtin/
-│       └── function_grader.py
-├── hub/
-│   ├── attempts.py      # 记录增删改查 + 排行榜 + 搜索
-│   ├── notes.py         # Markdown 笔记（YAML frontmatter）
-│   └── skills.py        # 技能包（含 SKILL.md）
-├── hooks/
-│   └── post_commit.py   # 提交后自动评估
-├── template/
-│   └── coral_md.py      # CORAL.md 生成器
-├── web/                 # Starlette + React 看板
-└── cli/                 # 5 个模块，17 条命令
-```
-
+深入阅读：[核心概念](https://docs.coralxyz.com/concepts) · [多 Agent 运行](https://docs.coralxyz.com/guides/multi-agent) · [评估循环](https://docs.coralxyz.com/concepts/eval-loop)
 
 ### 示例
 
@@ -317,6 +84,7 @@ coral/
 | **spaceship_titanic** | 机器学习 | Kaggle 竞赛 |
 | **stanford_covid_vaccine** | 生物/ML | mRNA 降解预测 |
 
+完整任务清单与详解见[示例文档](https://docs.coralxyz.com/examples)。
 
 ### 开发
 
