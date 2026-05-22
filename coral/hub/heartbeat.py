@@ -166,6 +166,7 @@ def default_local_actions(config) -> list[dict]:
                     "every": action_cfg.every,
                     "prompt": action_cfg.prompt or DEFAULT_PROMPTS.get(action_cfg.name, ""),
                     "trigger": trigger,
+                    "options": dict(getattr(action_cfg, "options", {}) or {}),
                 }
             )
     return actions
@@ -186,6 +187,7 @@ def default_global_actions(config) -> list[dict]:
                     "every": action_cfg.every,
                     "prompt": action_cfg.prompt or DEFAULT_PROMPTS.get(action_cfg.name, ""),
                     "trigger": trigger,
+                    "options": dict(getattr(action_cfg, "options", {}) or {}),
                 }
             )
     return actions

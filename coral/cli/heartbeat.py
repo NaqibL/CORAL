@@ -93,9 +93,14 @@ def _cmd_heartbeat_set(args: argparse.Namespace) -> None:
     prompt = getattr(args, "prompt", None)
     is_global = getattr(args, "is_global", None)
     trigger = getattr(args, "trigger", None)
+    epsilon = getattr(args, "epsilon", None)
 
     if every <= 0:
         print("Error: --every must be at least 1.", file=sys.stderr)
+        sys.exit(1)
+
+    if epsilon is not None and epsilon < 0:
+        print("Error: --epsilon must be >= 0.", file=sys.stderr)
         sys.exit(1)
 
     # For custom (non-built-in) names, --prompt is required
@@ -136,23 +141,27 @@ def _cmd_heartbeat_set(args: argparse.Namespace) -> None:
                 action["trigger"] = trigger
                 if prompt is not None:
                     action["prompt"] = prompt
+                if epsilon is not None:
+                    action.setdefault("options", {})["epsilon"] = epsilon
                 found = True
                 break
         if not found:
-            actions.append(
-                {
-                    "name": name,
-                    "every": every,
-                    "prompt": prompt if prompt is not None else DEFAULT_PROMPTS.get(name, ""),
-                    "trigger": trigger,
-                }
-            )
+            new_action: dict = {
+                "name": name,
+                "every": every,
+                "prompt": prompt if prompt is not None else DEFAULT_PROMPTS.get(name, ""),
+                "trigger": trigger,
+                "options": {"epsilon": epsilon} if epsilon is not None else {},
+            }
+            actions.append(new_action)
         write_global_heartbeat(coral_dir, actions)
         label = (
             f"after {every} non-improving eval(s) [plateau]"
             if trigger == "plateau"
             else f"every {every} eval(s)"
         )
+        if trigger == "plateau" and epsilon is not None and epsilon > 0:
+            label = f"{label} (epsilon={epsilon})"
         print(f"Set '{name}' to {label} (global) for all agents.")
     else:
         actions = read_agent_heartbeat(coral_dir, agent_id)
@@ -163,23 +172,27 @@ def _cmd_heartbeat_set(args: argparse.Namespace) -> None:
                 action["trigger"] = trigger
                 if prompt is not None:
                     action["prompt"] = prompt
+                if epsilon is not None:
+                    action.setdefault("options", {})["epsilon"] = epsilon
                 found = True
                 break
         if not found:
-            actions.append(
-                {
-                    "name": name,
-                    "every": every,
-                    "prompt": prompt if prompt is not None else DEFAULT_PROMPTS.get(name, ""),
-                    "trigger": trigger,
-                }
-            )
+            new_action = {
+                "name": name,
+                "every": every,
+                "prompt": prompt if prompt is not None else DEFAULT_PROMPTS.get(name, ""),
+                "trigger": trigger,
+                "options": {"epsilon": epsilon} if epsilon is not None else {},
+            }
+            actions.append(new_action)
         write_agent_heartbeat(coral_dir, agent_id, actions)
         label = (
             f"after {every} non-improving eval(s) [plateau]"
             if trigger == "plateau"
             else f"every {every} eval(s)"
         )
+        if trigger == "plateau" and epsilon is not None and epsilon > 0:
+            label = f"{label} (epsilon={epsilon})"
         print(f"Set '{name}' to {label} (local) for {agent_id}.")
 
 
