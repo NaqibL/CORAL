@@ -544,7 +544,7 @@ def setup_opencode_settings(
     }
 
     if gateway_url:
-        provider_options: dict[str, str] = {"baseURL": gateway_url}
+        provider_options: dict[str, str] = {"baseURL": gateway_url, "compatibility": "compatible"}
         if gateway_api_key:
             provider_options["apiKey"] = gateway_api_key
         models_dict: dict[str, dict] = {
