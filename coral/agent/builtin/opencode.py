@@ -145,10 +145,10 @@ class OpenCodeRuntime:
         venv_bin = str(worktree_path / ".venv" / "bin")
         agent_env["PATH"] = venv_bin + ":" + agent_env.get("PATH", "")
 
-        # Route through gateway if configured
-        if gateway_url:
-            agent_env["OPENAI_BASE_URL"] = gateway_url
-            logger.info(f"OpenCode agent {agent_id}: routing via gateway at {gateway_url}")
+        # Gateway URL is configured via opencode.json provider block (baseURL + compatibility).
+        # Do NOT set OPENAI_BASE_URL here — that would configure OpenCode's built-in OpenAI
+        # provider without compatibility:compatible, causing it to use the Responses API
+        # (/responses) instead of chat/completions, which breaks non-OpenAI backends.
         if gateway_api_key:
             agent_env["OPENAI_API_KEY"] = gateway_api_key
 
