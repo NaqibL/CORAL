@@ -15,9 +15,9 @@
     "skill": "allow"
   },
   "provider": {
-    "claude": {
-      "npm": "@ai-sdk/anthropic",
-      "name": "claude",
+    "deepseek": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "deepseek",
       "options": {
         "baseURL": "http://localhost:4001/v1",
         "apiKey": "xxx"
