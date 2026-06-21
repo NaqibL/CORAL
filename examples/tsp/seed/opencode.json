@@ -15,9 +15,9 @@
     "skill": "allow"
   },
   "provider": {
-    "openai": {
+    "openrouter": {
       "npm": "@ai-sdk/openai",
-      "name": "openai",
+      "name": "openrouter",
       "options": {
         "baseURL": "http://localhost:4001",
         "apiKey": "xxx",
