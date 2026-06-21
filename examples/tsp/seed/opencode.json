@@ -13,5 +13,21 @@
     "codesearch": "allow",
     "lsp": "allow",
     "skill": "allow"
+  },
+  "provider": {
+    "openai": {
+      "npm": "@ai-sdk/openai",
+      "name": "openai",
+      "options": {
+        "baseURL": "http://localhost:4001",
+        "apiKey": "xxx",
+        "compatibility": "compatible"
+      },
+      "models": {
+        "gpt-5.4": {
+          "name": "gpt-5.4"
+        }
+      }
+    }
   }
 }
