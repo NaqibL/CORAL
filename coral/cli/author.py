@@ -182,7 +182,7 @@ def cmd_validate(args: argparse.Namespace) -> None:
 
     config = CoralConfig.from_yaml(task_dir / "task.yaml")
 
-    with tempfile.TemporaryDirectory(prefix="coral_test_eval_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="coral_test_eval_", ignore_cleanup_errors=True) as tmpdir:
         tmpdir = Path(tmpdir)
         workspace = tmpdir / "workspace"
         workspace.mkdir()

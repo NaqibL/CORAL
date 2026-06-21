@@ -1,91 +1,26 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # CORAL
 
 An orchestration system for **autonomous coding agents** — agents follow a CORAL.md guide, run experiments, share knowledge, and loop forever.
 
-## Project Overview
+## Core Pattern
 
-Core pattern: **Spawn agents → agents read CORAL.md → commit changes → grader daemon scores them → repeat**
+**Spawn agents → agents read CORAL.md → commit changes → grader daemon scores them → repeat**
 
 Key concepts:
 - **Agents are the optimizers** — Claude Code (or Codex / Cursor / Kiro / OpenCode) subprocesses, each in its own git worktree.
 - **Shared state via `.coral/`** — split into `public/` (visible to agents through a runtime-specific symlink like `.claude/`, `.codex/`, `.opencode/`) and `private/` (grader code, grader venv, hidden inputs).
 - **Async eval loop** — `coral eval -m "..."` stages+commits and writes a *pending* attempt; a long-running grader daemon picks it up, grades it inside a detached worktree, and writes the final score back. Default behavior blocks until the score lands; `--no-wait` returns immediately.
-- **CLI orchestration** — 18 commands (see Commands below), grouped under `coral start / status / eval / log / ...`.
-
-## Directory Structure
-
-| Directory | Purpose |
-|-----------|---------|
-| `coral/types.py` | Core types: `Task`, `Score`, `ScoreBundle`, `Attempt` |
-| `coral/config.py` | OmegaConf-backed YAML configuration (`CoralConfig`, `GraderConfig`, `AgentConfig`, `GatewayConfig`, `WarmStartConfig`, `HeartbeatActionConfig`, ...) |
-| `coral/agent/` | Agent lifecycle: `manager.py` (multi-agent supervisor), `runtime.py` (abstract), `state.py`, `heartbeat.py`, `exit_classifier.py`, `warmstart.py`, `process.py`, `registry.py` |
-| `coral/agent/builtin/` | Concrete runtimes: `claude_code`, `codex`, `cursor_agent`, `kiro`, `opencode` |
-| `coral/grader/` | Grader stack: `protocol.py`, `base.py`, `task_grader.py`, `loader.py`, `subprocess_grader.py`, `daemon.py` (long-running grader), `builtin/function_grader.py` |
-| `coral/hub/` | Shared state: `attempts.py`, `notes.py`, `skills.py`, `checkpoint.py` (git-tracked snapshots of `.coral/public/`), `heartbeat.py`, `prompts/` (built-in heartbeat prompts) |
-| `coral/hooks/` | `post_commit.py` — implements `submit_eval` (called by `coral eval`) |
-| `coral/workspace/` | Run layout: `project.py` (run dir setup), `worktree.py` (per-agent git worktrees + symlinks), `repo.py` (clone/init), `grader_env.py` (`.coral/private/grader_venv/`) |
-| `coral/template/` | `coral_md.py` + `coral.md.template` / `coral_single.md.template`; bundled `agents/` (deep-researcher, librarian) and `skills/` (deep-research, organize-files, skill-creator) seeded into every run |
-| `coral/gateway/` | Optional LiteLLM gateway (`server.py`, `middleware.py`, `config.py`) for intercepting agent model traffic |
-| `coral/web/` | Starlette web dashboard (`app.py`, `api.py`, `events.py`, `logs.py`, `static/`) |
-| `coral/cli/` | CLI package: `start.py`, `query.py`, `eval.py`, `heartbeat.py`, `ui.py`, `author.py`, `validation.py`, `_helpers.py` |
-| `examples/` | Task configs (circle_packing, swebench-verified, kernel_engineering, mnist, ...) — each is a `task.yaml` + `seed/` + packaged grader (`grader/` referenced by `grader.entrypoint`); hidden data ships inside the grader package |
-| `tests/` | Pytest suite (config, grader, hooks, hub, manager reliability, daemon, workspace, ...) |
-
-## How It Works
-
-```
-coral start --config task.yaml
-  → results/<task-slug>/<timestamp>/        ← run_dir
-    ├── .coral/
-    │   ├── public/        symlinked into each worktree as .claude/ (or .codex/.opencode/...)
-    │   │   ├── attempts/  pending + final ScoreBundle JSONs (one per commit hash)
-    │   │   ├── notes/     agent-written markdown
-    │   │   ├── skills/    agent-built reusable tools (seeded with deep-research, ...)
-    │   │   ├── agents/    subagent definitions (seeded with deep-researcher, librarian)
-    │   │   ├── logs/, eval_logs/, heartbeat/, eval_count
-    │   │   └── grader_daemon.pid, grader_daemon_heartbeat
-    │   ├── private/
-    │   │   ├── grader_venv/   isolated uv venv where the grader entrypoint runs
-    │   │   └── ...        anything listed in grader.private (hidden from agents)
-    │   ├── config.yaml, config_dir
-    │   └── .git/          checkpoint repo for shared-state versioning
-    ├── repo/              cloned source repo (each run is independent)
-    └── agents/<agent_id>/ git worktree on branch coral/<agent_id>; .claude/ → .coral/public/
-
-  → Bootstraps .coral/private/grader_venv/ via `uv venv` and runs
-    grader.setup commands inside it (grader.entrypoint is required).
-  → Spawns the chosen runtime per agent (claude_code default).
-  → Starts the grader daemon as a sibling process.
-
-Each agent loop:
-  → Reads CORAL.md (generated by coral/template/coral_md.py)
-  → Edits files, then runs `coral eval -m "description"`
-    - submit_eval (coral/hooks/post_commit.py) does git add -A + commit
-    - writes a pending Attempt JSON to .coral/public/attempts/<hash>.json
-    - by default, polls until the daemon finalizes the score (use --no-wait to return immediately + `coral wait <hash>` later)
-  → Grader daemon (coral/grader/daemon.py):
-    - watches .coral/public/attempts/ for new pending entries
-    - dispatches through a thread pool of size grader.parallel.max_workers (default 1)
-    - each worker grades inside `git worktree add --detach <commit>` so agent commits during grading don't perturb the grader's view
-    - reuses one TaskGrader instance per worker (no per-eval cold start)
-    - writes the final ScoreBundle back atomically (tmp + rename)
-  → Heartbeat actions (reflect / consolidate / pivot / lint_wiki) fire on
-    interval or plateau triggers and inject prompts into the agent.
-```
-
-## Tech Stack
-
-- **Python 3.11+**, Hatchling build, **uv** for environment management.
-- **Core deps**: `pyyaml`, `omegaconf`, `starlette` (dashboard).
-- **Optional extras**: `swebench`, `datasets`, `docker`, `harbor` (heavyweight task graders).
-- **Runtimes** are external CLIs invoked as subprocesses — Claude Code (`claude`), Codex (`codex`), Cursor Agent (`cursor-agent`), Kiro (`kiro`), OpenCode (`opencode`).
 
 ## Commands
 
 ```bash
 # Install
 uv sync                    # Basic
-uv sync --extra dev        # With pytest, ruff
+uv sync --extra dev        # With pytest, ruff, mypy
 uv sync --all-extras       # Everything
 
 # Authoring
@@ -117,6 +52,7 @@ coral ui [--port 8420]                            # Web dashboard
 # Agent-side commands (run inside an agent worktree)
 coral eval -m "what changed and why"              # Stage + commit + grade (blocking)
 coral eval -m "..." --no-wait                     # Submit and return immediately
+coral eval -m "..." --tune                        # Submit as a tune attempt (doesn't count toward plateau/heartbeat budget)
 coral wait <hash> [--timeout 600]                 # Block until daemon finalizes a prior submission
 coral diff                                        # Show uncommitted changes
 coral revert                                      # Undo last commit
@@ -124,70 +60,132 @@ coral checkout <hash>                             # Reset working tree to a prev
 coral heartbeat [set|remove|reset]                # Inspect or rewrite per-agent heartbeat actions
 
 # Tests + lint
-uv run pytest tests/ -v
+uv run pytest tests/ -v                           # Full test suite
+uv run pytest tests/test_config.py -v             # Single file
+uv run pytest tests/ -k "test_name" -v            # Single test by name
 uv run ruff check .
 uv run ruff format .
+uv run mypy coral/
 ```
 
-## Code Patterns
+## How It Works
 
-1. **`GraderInterface`** protocol (`@runtime_checkable`):
-   ```python
-   class GraderInterface(Protocol):
-       async def grade(self, codebase_path: str, tasks: list[Task], **kwargs) -> ScoreBundle: ...
-   ```
+```
+coral start --config task.yaml
+  → results/<task-slug>/<timestamp>/        ← run_dir
+    ├── .coral/
+    │   ├── public/        symlinked into each worktree as .claude/ (or .codex/.opencode/...)
+    │   │   ├── attempts/  pending + final ScoreBundle JSONs (one per commit hash)
+    │   │   ├── notes/     agent-written markdown
+    │   │   ├── skills/    agent-built reusable tools (seeded with deep-research, ...)
+    │   │   ├── agents/    subagent definitions (seeded with deep-researcher, librarian)
+    │   │   ├── logs/, eval_logs/, heartbeat/, eval_count
+    │   │   └── grader_daemon.pid, grader_daemon_heartbeat
+    │   ├── private/
+    │   │   ├── grader_venv/   isolated uv venv where the grader entrypoint runs
+    │   │   └── ...        anything listed in grader.private (hidden from agents)
+    │   ├── config.yaml, config_dir
+    │   └── .git/          checkpoint repo for shared-state versioning
+    ├── repo/              cloned source repo (each run is independent)
+    └── agents/<agent_id>/ git worktree on branch coral/<agent_id>; .claude/ → .coral/public/
 
-2. **`BaseGrader`** with helpers `_make_score()`, `_make_bundle()`, `grade_sync()`. **`TaskGrader`** (`coral/grader/task_grader.py`) is the recommended base for task-specific graders — implement `evaluate()` and use `self.codebase_path`, `self.private_dir`, `self.args`, `self.score(...)`, `self.fail(...)`.
+Each agent loop:
+  → Reads CORAL.md (generated by coral/template/coral_md.py)
+  → Edits files, then runs `coral eval -m "description"`
+    - submit_eval (coral/hooks/post_commit.py) does git add -A + commit
+    - writes a pending Attempt JSON to .coral/public/attempts/<hash>.json
+    - by default, polls until the daemon finalizes the score
+  → Grader daemon (coral/grader/daemon.py):
+    - watches .coral/public/attempts/ for new pending entries
+    - dispatches through a thread pool of size grader.parallel.max_workers (default 1)
+    - each worker grades inside `git worktree add --detach <commit>` so agent commits
+      during grading don't perturb the grader's view
+    - reuses one TaskGrader instance per worker (no per-eval cold start)
+    - writes the final ScoreBundle back atomically (tmp + rename)
+  → Heartbeat actions (reflect / consolidate / pivot / lint_wiki) fire on
+    interval or plateau triggers and inject prompts into the agent.
+```
 
-3. **Wiring a grader**: `grader.entrypoint = "module.path:ClassName"` (required) plus `grader.setup: ["uv pip install -e ./grader"]`. The daemon resolves the entrypoint inside `.coral/private/grader_venv/` via `coral.grader.subprocess_grader.SubprocessGrader`. The legacy `eval/grader.py` auto-discovery has been removed. Hidden data (answer keys, test fixtures, helper modules) ships inside the grader package (e.g. a `taskdata/` subdir resolved via `Path(__file__).parent`); `grader.private` remains for files that must stay outside the package. `FunctionGrader` exists for wrapping plain callables but is no longer wired through `task.yaml` — ship a thin `TaskGrader` subclass instead.
+## Architecture
 
-4. **Eval is async by default**: `coral eval` writes a pending `Attempt` to `.coral/public/attempts/<hash>.json` and the daemon writes the final `ScoreBundle` back. `grader.max_pending_per_agent` (default 1) caps in-flight submissions per agent; `grader.parallel.max_workers` (default 1) controls daemon concurrency — bump only when the grader is concurrency-safe.
+### Module Layout
 
-5. **Hub modules** are pure I/O over `.coral/public/`:
-   - `attempts.py` — JSON CRUD, leaderboard, search, eval counters
-   - `notes.py` — markdown + YAML frontmatter
-   - `skills.py` — `SKILL.md` discovery
-   - `checkpoint.py` — `git init` + lock-protected commits inside `.coral/public/` so agents can browse the history of shared state
-   - `heartbeat.py` — per-agent action storage
+| Package | Purpose |
+|---------|---------|
+| `coral/types.py` | Core types: `Task`, `Score`, `ScoreBundle`, `Attempt` |
+| `coral/config.py` | OmegaConf-backed YAML config (`CoralConfig` and all sub-configs) |
+| `coral/agent/` | Agent lifecycle: `manager.py`, `runtime.py` (abstract), `heartbeat.py`, `exit_classifier.py`, `warmstart.py`, `registry.py` |
+| `coral/agent/builtin/` | Concrete runtimes: `claude_code`, `codex`, `cursor_agent`, `kiro`, `opencode` |
+| `coral/grader/` | Grader stack: `protocol.py`, `base.py`, `task_grader.py`, `loader.py`, `subprocess_grader.py`, `daemon.py` |
+| `coral/hub/` | Shared state I/O: `attempts.py`, `notes.py`, `skills.py`, `checkpoint.py`, `heartbeat.py` |
+| `coral/hooks/` | `post_commit.py` — implements `submit_eval` (called by `coral eval`) |
+| `coral/workspace/` | Run layout: `project.py` (run dir setup), `worktree.py` (per-agent worktrees + symlinks), `repo.py`, `grader_env.py` |
+| `coral/template/` | `coral_md.py` + templates; bundled `agents/` and `skills/` seeded into every run |
+| `coral/gateway/` | Optional LiteLLM gateway for intercepting agent model traffic |
+| `coral/web/` | Starlette web dashboard |
+| `coral/cli/` | CLI package — 18 commands dispatched from `coral/cli/__init__.py` |
+| `examples/` | Task configs — each is `task.yaml` + `seed/` + packaged grader |
+| `tests/` | Pytest suite |
 
-6. **Heartbeat actions** (`coral/agent/heartbeat.py`): each agent has a list of `HeartbeatAction`s with `trigger ∈ {"interval", "plateau"}`. Defaults: `reflect` every 1 eval, `consolidate` every 10 (global), `pivot` after 5 plateau evals, `lint_wiki` every 10 (global). Edit at runtime with `coral heartbeat set/remove/reset`.
+### Grader Stack
 
-7. **Multi-runtime**: `coral.agent.registry` maps `agents.runtime` to a runtime class. `claude_code` is the default. Each runtime knows its native shared-state directory (`.claude`, `.codex`, `.opencode`, ...) — `generate_coral_md(..., shared_dir=...)` renders the right paths into CORAL.md.
+`GraderInterface` protocol (`coral/grader/protocol.py`):
+```python
+class GraderInterface(Protocol):
+    async def grade(self, codebase_path: str, tasks: list[Task], **kwargs) -> ScoreBundle: ...
+```
 
-## Key Files
+**`TaskGrader`** (`coral/grader/task_grader.py`) is the recommended base for task graders. Implement `evaluate()` and use the provided helpers:
+- `self.codebase_path`, `self.private_dir`, `self.args`, `self.island_id`
+- `self.score(value, explanation)` → `ScoreBundle`
+- `self.fail(explanation)` → null-score bundle
+- `self.run_program(filename)` — subprocess in agent codebase
+- `self.run_script_json(script)` — inline Python script that prints JSON
+- `self.eval_logs_dir` — `Path` to a directory that persists after the eval worktree is deleted; use it for subprocess logs, traces, etc. the agent should inspect. Note: anything written to `self.codebase_path` is **lost** after grading (the daemon removes the detached worktree).
 
-| File | Purpose |
-|------|---------|
-| `pyproject.toml` | Package config, dependencies, `coral` console entrypoint |
-| `coral/types.py` | `Task`, `Score`, `ScoreBundle`, `Attempt` |
-| `coral/config.py` | YAML config dataclasses + OmegaConf merge + dotlist overrides |
-| `coral/grader/protocol.py` | `GraderInterface` protocol |
-| `coral/grader/base.py` | `BaseGrader` base class |
-| `coral/grader/task_grader.py` | `TaskGrader` — recommended base for task graders |
-| `coral/grader/loader.py` | Resolve grader from `grader.entrypoint` (subprocess in grader venv) |
-| `coral/grader/subprocess_grader.py` | Worker-subprocess grader runtime used by entrypoint path |
-| `coral/grader/daemon.py` | Long-running grader daemon (one per run) |
-| `coral/grader/builtin/function_grader.py` | Wrap functions as graders |
-| `coral/workspace/project.py` | `setup_run_dir()` — builds `.coral/{public,private}/`, clones repo, seeds bundled skills/agents |
-| `coral/workspace/worktree.py` | Per-agent git worktree creation + `.claude/` symlink + permissions |
-| `coral/workspace/repo.py` | Source-repo clone/init helpers + `run_setup_commands` |
-| `coral/workspace/grader_env.py` | `setup_grader_env()` — `uv venv .coral/private/grader_venv/` + grader.setup |
-| `coral/hub/attempts.py` | Attempt CRUD + leaderboard + per-agent pending caps |
-| `coral/hub/checkpoint.py` | Git-tracked checkpoints of `.coral/public/` |
-| `coral/agent/manager.py` | Multi-agent lifecycle, supervises grader daemon, restart-burst circuit breaker |
-| `coral/agent/runtime.py` | `AgentRuntime` abstract base |
-| `coral/agent/builtin/*.py` | Concrete runtimes (claude_code, codex, cursor_agent, kiro, opencode) |
-| `coral/agent/heartbeat.py` | `HeartbeatAction` / `HeartbeatRunner` (interval + plateau triggers) |
-| `coral/hooks/post_commit.py` | `submit_eval()` — git add/commit + write pending attempt + optional poll |
-| `coral/template/coral_md.py` | Renders the CORAL.md each agent reads |
-| `coral/cli/__init__.py` | Top-level argparse + dispatch (18 commands) |
+Wiring a grader: `grader.entrypoint = "module.path:ClassName"` (required) plus `grader.setup: ["uv pip install -e ./grader"]`. The daemon resolves the entrypoint inside `.coral/private/grader_venv/`. Hidden data (answer keys, test fixtures) ships inside the grader package (resolved via `Path(__file__).parent`); `grader.private` is for files that must stay outside the package.
+
+### Config System
+
+`CoralConfig` (`coral/config.py`) merges a YAML file with OmegaConf structured defaults. CLI dotlist overrides (`agents.count=4`) are applied via `CoralConfig.merge_dotlist()`. Sub-configs:
+
+| Config | Key fields |
+|--------|-----------|
+| `TaskConfig` | `name`, `description`, `tips` |
+| `GraderConfig` | `entrypoint`, `setup`, `timeout`, `args`, `direction` (maximize/minimize), `max_pending_per_agent`, `parallel.max_workers` |
+| `AgentConfig` | `count`, `runtime`, `model`, `max_turns`, `timeout`, `heartbeat`, `assignments`, `stagger_seconds` |
+| `WorkspaceConfig` | `results_dir`, `repo_path`, `setup` |
+| `IslandsConfig` | `count`, `migration.*` |
+| `RunConfig` | `verbose`, `ui`, `session` (tmux/local/docker) |
+
+**YAML gotcha**: heartbeat action `global:` in YAML maps to `is_global` in Python (`_preprocess` normalizes it). Unrecognized `grader.type`/`grader.module` keys raise immediately with migration guidance.
+
+### Multi-Island Runs
+
+`islands.count > 1` partitions agents into isolated shared-state islands under `.coral/islands/<id>/`. Each island gets its own `attempts/`, `notes/`, `skills/` etc. Migration (`islands.migration.*`) periodically moves high-scoring agents between islands. The daemon is island-aware; `TaskGrader.island_id` is set before `evaluate()` so graders can scope reads (e.g. `read_attempts(coral_dir, island_id=self.island_id)`).
+
+### Agent Reliability
+
+`AgentConfig` crash-burst circuit breaker: if an agent exits too many times (`restart_burst_threshold`) within `restart_burst_window` seconds, the manager pauses it for `restart_pause_seconds`. The stall watchdog (`agents.timeout`, default 1200s) restarts agents that produce no output, but exempts agents waiting on pending grader results.
+
+### Heartbeat Actions
+
+Each agent has a list of `HeartbeatAction`s with `trigger ∈ {"interval", "plateau"}`. Defaults: `reflect` every 1 eval, `consolidate` every 10 (global), `pivot` after 5 plateau evals, `lint_wiki` every 10 (global). `is_global=True` uses the cross-agent global eval count. Edit at runtime with `coral heartbeat set/remove/reset`.
+
+### Tune Mode
+
+`coral eval --tune` submits an attempt classified as `budget_class="tune"`. These don't count against plateau/heartbeat budgets, letting agents sweep hyperparameters cheaply. The grader can detect this via `self.tune` (bool) and optionally run a cheaper evaluation target. `self.describe_tune()` returns text prepended to the eval feedback so agents learn the per-grader tune contract.
+
+### Multi-Runtime
+
+`coral.agent.registry` maps `agents.runtime` to a runtime class. `claude_code` is the default. Each runtime knows its native shared-state directory (`.claude`, `.codex`, `.opencode`, ...) — `generate_coral_md(..., shared_dir=...)` renders the right paths into CORAL.md. Mix-and-match: set `agents.assignments` as a list of `{runtime, model, count}` objects instead of using `agents.count`.
 
 ## Developer Workflows
 
-Project-local skills live under `.claude/skills/`. Claude Code loads them on demand by description match — describe the task and the matching skill triggers automatically.
+Project-local skills live under `.claude/skills/`. Claude Code loads them on demand by description match.
 
 | Skill | Use when |
 |---|---|
-| [coral-debug](.claude/skills/coral-debug/SKILL.md) | Editing existing code under `coral/` or chasing a bug — reproduce loops, where-to-look pointers, run inspection, lint/test |
-| [coral-new-task](.claude/skills/coral-new-task/SKILL.md) | Adding a new `examples/<task>/` — seed + task.yaml + grader package, validation loop, common pitfalls |
-| [coral-extend](.claude/skills/coral-extend/SKILL.md) | Extending the framework itself — new runtime, CLI command, bundled skill, hook, or config field |
+| [coral-debug](.claude/skills/coral-debug/SKILL.md) | Editing existing code under `coral/` or chasing a bug |
+| [coral-new-task](.claude/skills/coral-new-task/SKILL.md) | Adding a new `examples/<task>/` |
+| [coral-extend](.claude/skills/coral-extend/SKILL.md) | Extending the framework — new runtime, CLI command, bundled skill, hook, or config field |

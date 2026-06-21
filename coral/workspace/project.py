@@ -172,7 +172,7 @@ def seed_agent_role(
             agent_id=agent_id,
             created_at=datetime.now().isoformat(),
         )
-        dst.write_text(rendered)
+        dst.write_text(rendered, encoding="utf-8")
         return dst
 
     src = Path(source).expanduser()
@@ -274,8 +274,13 @@ def create_project(config: CoralConfig, config_dir: Path | None = None) -> Proje
         latest_link.unlink()
     if not latest_link.exists():
         rel = os.path.relpath(run_dir, task_dir)
-        latest_link.symlink_to(rel)
-        logger.info(f"Symlinked {latest_link} -> {rel}")
+        try:
+            latest_link.symlink_to(rel)
+            logger.info(f"Symlinked {latest_link} -> {rel}")
+        except OSError:
+            # Windows may require elevated privileges for symlinks; fall back to a pointer file
+            (task_dir / "latest.txt").write_text(str(run_dir))
+            logger.info(f"Wrote latest pointer to {task_dir / 'latest.txt'}")
 
     # Clone source repo into run_dir/repo/
     repo_dir = clone_or_init_repo(source_repo, run_repo)

@@ -1,0 +1,16 @@
+model_list:
+  - model_name: "deepseek-v4-flash"
+    litellm_params:
+      model: "deepseek/deepseek-v4-flash"
+      api_base: "https://openrouter.ai/api/v1"
+      api_key: "os.environ/OPENROUTER_API_KEY"
+
+  - model_name: "deepseek-v4-flash"
+    litellm_params:
+      model: "xiaomi/mimo-v2.5"
+      api_base: "https://openrouter.ai/api/v1"
+      api_key: "os.environ/OPENROUTER_API_KEY"
+
+litellm_settings:
+  drop_params: true
+  num_retries: 3

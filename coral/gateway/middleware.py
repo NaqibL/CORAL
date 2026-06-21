@@ -180,6 +180,7 @@ class CoralGatewayMiddleware:
         start_time = time.monotonic()
         response_status = 0
         response_body_parts: list[bytes] = []
+        sse_buffer: list[bytes] = [b""]  # mutable container for nonlocal mutation
 
         async def send_wrapper(message: dict) -> None:
             nonlocal response_status
@@ -189,6 +190,13 @@ class CoralGatewayMiddleware:
                 body = message.get("body", b"")
                 if body:
                     response_body_parts.append(body)
+                    more_body = message.get("more_body", True)
+                    buf, filtered = _filter_sse_thinking(body, sse_buffer[0])
+                    if not more_body and buf:
+                        filtered += buf
+                        buf = b""
+                    sse_buffer[0] = buf
+                    message = {**message, "body": filtered}
             await send(message)
 
         # Pass through to LiteLLM
@@ -230,6 +238,39 @@ class AgentInfo:
     def __init__(self, agent_id: str, worktree_path: Path) -> None:
         self.agent_id = agent_id
         self.worktree_path = worktree_path
+
+
+def _filter_sse_thinking(chunk: bytes, buffer: bytes) -> tuple[bytes, bytes]:
+    """Strip thinking_delta SSE events from a response stream chunk.
+
+    Returns (remaining_buffer, filtered_output). The buffer holds any
+    incomplete SSE event that spans across chunk boundaries.
+    """
+    data = buffer + chunk
+    output_parts: list[bytes] = []
+    while b"\n\n" in data:
+        idx = data.index(b"\n\n")
+        event, data = data[: idx + 2], data[idx + 2 :]
+        if not _is_thinking_delta_event(event):
+            output_parts.append(event)
+    return data, b"".join(output_parts)
+
+
+def _is_thinking_delta_event(event: bytes) -> bool:
+    """Return True if this SSE event is a thinking_delta that should be stripped."""
+    for line in event.split(b"\n"):
+        if line.startswith(b"data:"):
+            payload = line[5:].strip()
+            try:
+                d = json.loads(payload)
+                if (
+                    d.get("type") == "content_block_delta"
+                    and d.get("delta", {}).get("type") == "thinking_delta"
+                ):
+                    return True
+            except Exception:
+                pass
+    return False
 
 
 def _is_api_path(path: str) -> bool:

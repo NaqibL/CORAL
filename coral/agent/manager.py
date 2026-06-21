@@ -588,7 +588,7 @@ class AgentManager:
             shared_dir=shared_dir_name,
             island_id=island_id,
         )
-        (worktree_path / instruction_file).write_text(coral_md)
+        (worktree_path / instruction_file).write_text(coral_md, encoding="utf-8")
 
         # Start agent
         if island_id is not None:

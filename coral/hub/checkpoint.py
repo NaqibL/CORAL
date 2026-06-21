@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import subprocess
 from pathlib import Path
+
+from filelock import FileLock
 
 from coral.hub._island import island_root
 
@@ -83,10 +84,7 @@ def checkpoint(
 
     lock_path = root / ".git" / "coral.lock"
     try:
-        lock_path.touch(exist_ok=True)
-        with open(lock_path) as lock_fd:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
+        with FileLock(str(lock_path)):
             subprocess.run(
                 ["git", "add", "-A"],
                 cwd=str(root),

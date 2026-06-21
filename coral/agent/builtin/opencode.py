@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
 import sys
 import threading
@@ -115,8 +116,9 @@ class OpenCodeRuntime:
         # so OpenCode knows which provider to use. When the gateway is active,
         # the provider's baseURL is patched in opencode.json to route through
         # the LiteLLM proxy.
+        opencode_bin = shutil.which("opencode") or "opencode"
         cmd = [
-            "opencode",
+            opencode_bin,
             "run",
             "--model",
             model,

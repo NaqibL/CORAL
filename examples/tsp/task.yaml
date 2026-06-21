@@ -1,0 +1,61 @@
+task:
+  name: "Travelling Salesman Problem (Berlin52)"
+  description: |
+    Solve the Berlin52 TSP instance: find the shortest tour visiting all 52 cities exactly once
+    and returning to the start. The best known optimal tour length is 7542.
+
+    Your program file `solution.py` must define a `run()` function that returns a list of 52
+    integers — a permutation of [0, 51] representing the order in which cities are visited.
+    The tour is closed (the last city connects back to the first), so you do not repeat city 0.
+
+    The 52 city coordinates (x, y) are hardcoded in solution.py. The grader uses the same
+    coordinates to compute the Euclidean tour length.
+
+    Your score is `7542 / tour_length` — higher is better, 1.0 means matching the optimal.
+
+    Consider:
+    - 2-opt and 3-opt local search
+    - Lin-Kernighan style moves
+    - Simulated annealing with 2-opt moves
+    - Genetic / evolutionary algorithms
+    - Or-opt (relocate sequences of 1–3 cities)
+  tips: |
+    - Eval timeout is 120s. If your solution takes longer, it scores as a timeout.
+    - The grader validates: exactly 52 integers, each of [0..51] appears exactly once.
+    - numpy is always available; scipy is also available.
+    - The nearest-neighbour baseline scores ~0.84. A good 2-opt solution reaches ~0.95+.
+    - The optimal tour length is 7542 (Padberg & Rinaldi, 1991).
+    - Score = 7542 / your_tour_length; getting above 1.0 would beat the known optimum (not possible).
+
+grader:
+  entrypoint: "tsp_grader.grader:Grader"
+  setup:
+    - "uv pip install -e ./grader"
+  timeout: 120
+  direction: maximize
+  args:
+    program_file: "solution.py"
+  parallel:
+    max_workers: 1
+  max_pending_per_agent: 1
+
+agents:
+  count: 1
+  runtime: opencode
+  model: claude/deepseek-v4-flash
+  max_turns: 100
+  gateway:
+    enabled: true
+    port: 4001
+    config: "./litellm_config.yaml"
+
+workspace:
+  results_dir: "./results"
+  repo_path: "./examples/tsp/seed"
+  setup:
+    - "uv pip install numpy scipy"
+
+run:
+  verbose: true
+  ui: false
+  session: local

@@ -6,6 +6,7 @@ import asyncio
 import logging
 import secrets
 import socket
+import sys
 import threading
 import time
 import urllib.error
@@ -71,6 +72,13 @@ class GatewayManager:
 
         logger.info(f"Starting gateway on port {self.port}")
         logger.info(f"LiteLLM config: {self.config_path}")
+
+        # LiteLLM's startup banner uses Unicode chars that fail on Windows cp1252
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
         loop = asyncio.new_event_loop()
         try:

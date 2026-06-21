@@ -7,6 +7,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from coral.workspace.repo import (
@@ -15,6 +16,44 @@ from coral.workspace.repo import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _make_dir_link(src: Path, dst: Path) -> None:
+    """Create a directory link: symlink on Unix, junction on Windows (no admin needed)."""
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(dst), str(src.resolve())],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise OSError(result.stderr.decode(errors="replace"))
+    else:
+        try:
+            rel = os.path.relpath(src.resolve(), dst.parent.resolve())
+            dst.symlink_to(rel)
+        except (ValueError, OSError):
+            dst.symlink_to(src.resolve())
+
+
+def _is_dir_link(path: Path) -> bool:
+    """Return True if path is a symlink or a Windows directory junction."""
+    if path.is_symlink():
+        return True
+    if sys.platform == "win32" and path.is_dir():
+        try:
+            st = os.stat(path, follow_symlinks=False)
+            return bool(getattr(st, "st_file_attributes", 0) & 0x400)  # FILE_ATTRIBUTE_REPARSE_POINT
+        except OSError:
+            pass
+    return False
+
+
+def _remove_dir_link(path: Path) -> None:
+    """Remove a symlink or Windows directory junction without deleting its target."""
+    if path.is_symlink():
+        path.unlink()
+    elif sys.platform == "win32":
+        os.rmdir(str(path))  # rmdir removes a junction without deleting contents
 
 
 def create_agent_worktree(repo_path: Path, agent_id: str, agents_dir: Path) -> Path:
@@ -186,7 +225,7 @@ def setup_shared_state(
         # If a previous (buggy) run wrote into a real local dir at this path
         # instead of a symlink, migrate any files into the shared dir then
         # replace the local dir with a symlink.
-        if dst.exists() and not dst.is_symlink() and dst.is_dir():
+        if dst.exists() and not _is_dir_link(dst) and dst.is_dir():
             src.mkdir(parents=True, exist_ok=True)
             for entry in dst.iterdir():
                 target = src / entry.name
@@ -196,12 +235,9 @@ def setup_shared_state(
                 dst.rmdir()
             except OSError:
                 continue
-        if not dst.exists() and not dst.is_symlink():
-            try:
-                rel = os.path.relpath(src.resolve(), shared_dir.resolve())
-                dst.symlink_to(rel)
-            except (ValueError, OSError):
-                dst.symlink_to(src.resolve())
+        if not dst.exists() and not _is_dir_link(dst):
+            src.mkdir(parents=True, exist_ok=True)
+            _make_dir_link(src, dst)
 
     # Write the .coral_island breadcrumb when on an island. Single-island
     # callers (no island_id) deliberately do NOT get this file — its absence
@@ -266,8 +302,8 @@ def repoint_shared_state(
         # destination island hasn't seen any agent activity yet).
         src.mkdir(parents=True, exist_ok=True)
 
-        if dst.is_symlink():
-            dst.unlink()
+        if _is_dir_link(dst):
+            _remove_dir_link(dst)
         elif dst.exists() and dst.is_dir():
             # Local dir at this path (shouldn't happen in normal runs, but
             # the original setup_shared_state self-heals this case so we
@@ -283,11 +319,7 @@ def repoint_shared_state(
                 logger.warning(f"repoint_shared_state: could not remove non-empty local dir {dst}")
                 continue
 
-        try:
-            rel = os.path.relpath(src.resolve(), shared_dir.resolve())
-            dst.symlink_to(rel)
-        except (ValueError, OSError):
-            dst.symlink_to(src.resolve())
+        _make_dir_link(src, dst)
 
     (worktree_path / ".coral_island").write_text(str(new_island_id))
 
@@ -624,7 +656,7 @@ def setup_cursor_settings(
         "\n" + "\n".join(body_lines) + "\n"
     )
 
-    (rules_dir / "coral.mdc").write_text(rules_md)
+    (rules_dir / "coral.mdc").write_text(rules_md, encoding="utf-8")
 
 
 def setup_worktree_env(worktree_path: Path, setup_commands: list[str]) -> None:
@@ -651,7 +683,8 @@ def setup_worktree_env(worktree_path: Path, setup_commands: list[str]) -> None:
     # Force uv to create/use a venv inside this worktree, even if
     # pyproject.toml is resolved from a parent directory.
     worktree_venv = worktree_path / ".venv"
-    venv_python = worktree_venv / "bin" / "python"
+    _py = ("Scripts", "python.exe") if sys.platform == "win32" else ("bin", "python")
+    venv_python = worktree_venv / _py[0] / _py[1]
     if venv_python.exists():
         logger.debug(f"Worktree venv already populated at {worktree_venv}, skipping setup commands")
         return
@@ -661,7 +694,7 @@ def setup_worktree_env(worktree_path: Path, setup_commands: list[str]) -> None:
 
     # Install coral into the worktree's venv so agents can use
     # ``uv run coral eval`` and graders can ``from coral.grader import ...``.
-    venv_python = worktree_venv / "bin" / "python"
+    venv_python = worktree_venv / _py[0] / _py[1]
     if venv_python.exists() and shutil.which("uv"):
         coral_root = Path(__file__).resolve().parent.parent.parent
         if (coral_root / "pyproject.toml").exists():
