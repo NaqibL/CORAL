@@ -1,11 +1,9 @@
 model_list:
   - model_name: "gpt-5.4"
     litellm_params:
-      model: "deepseek/deepseek-v4-flash"
+      model: "deepseek/deepseek-chat"
       api_base: "https://openrouter.ai/api/v1"
       api_key: "os.environ/OPENROUTER_API_KEY"
-      extra_body:
-        include_reasoning: false
 
 litellm_settings:
   drop_params: true
