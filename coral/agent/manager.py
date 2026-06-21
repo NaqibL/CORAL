@@ -523,6 +523,7 @@ class AgentManager:
                 gateway_url=gateway_url,
                 gateway_api_key=gateway_api_key,
                 island_id=island_id,
+                model=model,
             )
         elif shared_dir_name == ".codex":
             setup_codex_settings(
@@ -1756,6 +1757,7 @@ class AgentManager:
             gateway_url=gateway_url,
             gateway_api_key=gateway_api_key,
             island_id=dst,
+            model=self.config.agents.model,
         )
 
         # (6) Swap spec + tracking dict so future restarts pick dst.
@@ -2416,6 +2418,7 @@ def _refresh_runtime_settings(
     gateway_url: str | None,
     gateway_api_key: str | None,
     island_id: str,
+    model: str | None = None,
 ) -> None:
     """Re-write the runtime's permission file against a new island root.
 
@@ -2442,6 +2445,7 @@ def _refresh_runtime_settings(
             gateway_url=gateway_url,
             gateway_api_key=gateway_api_key,
             island_id=island_id,
+            model=model,
         )
     elif shared_dir_name == ".codex":
         setup_codex_settings(

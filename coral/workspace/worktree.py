@@ -496,6 +496,7 @@ def setup_opencode_settings(
     gateway_url: str | None = None,
     gateway_api_key: str | None = None,
     island_id: str | int | None = None,
+    model: str | None = None,
 ) -> None:
     """Write OpenCode opencode.json with scoped permissions.
 
@@ -546,15 +547,19 @@ def setup_opencode_settings(
         provider_options: dict[str, str] = {"baseURL": gateway_url}
         if gateway_api_key:
             provider_options["apiKey"] = gateway_api_key
+        models_dict: dict[str, dict] = {
+            "gpt-5.4": {"name": "gpt-5.4"},
+            "claude-opus-4-6": {"name": "claude-opus-4-6"},
+        }
+        if model:
+            model_name = model.split("/", 1)[-1]
+            models_dict.setdefault(model_name, {"name": model_name})
         settings["provider"] = {
             "openai": {
                 "npm": "@ai-sdk/openai",
                 "name": "openai",
                 "options": provider_options,
-                "models": {
-                    "gpt-5.4": {"name": "gpt-5.4"},
-                    "claude-opus-4-6": {"name": "claude-opus-4-6"},
-                },
+                "models": models_dict,
             },
         }
 
