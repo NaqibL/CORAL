@@ -42,7 +42,7 @@ grader:
 agents:
   count: 1
   runtime: opencode
-  model: openai/deepseek-v4-flash
+  model: openai/gpt-5.4
   max_turns: 100
   gateway:
     enabled: true
