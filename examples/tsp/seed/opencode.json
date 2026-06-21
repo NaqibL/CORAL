@@ -15,9 +15,9 @@
     "skill": "allow"
   },
   "provider": {
-    "gateway": {
+    "deepseek": {
       "npm": "@ai-sdk/openai",
-      "name": "gateway",
+      "name": "deepseek",
       "options": {
         "baseURL": "http://localhost:4001/v1",
         "apiKey": "xxx"

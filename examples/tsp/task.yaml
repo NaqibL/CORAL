@@ -42,7 +42,7 @@ grader:
 agents:
   count: 1
   runtime: opencode
-  model: gateway/deepseek-v4-flash
+  model: deepseek/deepseek-v4-flash
   max_turns: 100
   gateway:
     enabled: true
