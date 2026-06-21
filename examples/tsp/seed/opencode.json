@@ -15,9 +15,7 @@
     "skill": "allow"
   },
   "provider": {
-    "deepseek": {
-      "npm": "@ai-sdk/openai",
-      "name": "deepseek",
+    "openai": {
       "options": {
         "baseURL": "http://localhost:4001/v1",
         "apiKey": "xxx"
