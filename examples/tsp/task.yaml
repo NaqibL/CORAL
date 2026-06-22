@@ -42,12 +42,8 @@ grader:
 agents:
   count: 1
   runtime: opencode
-  model: openrouter/gpt-5.4
+  model: openrouter/deepseek/deepseek-v4-flash
   max_turns: 100
-  gateway:
-    enabled: true
-    port: 4001
-    config: "./litellm_config.yaml"
 
 workspace:
   results_dir: "./results"

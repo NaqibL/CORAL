@@ -16,16 +16,12 @@
   },
   "provider": {
     "openrouter": {
-      "npm": "@ai-sdk/openai",
-      "name": "openrouter",
-      "options": {
-        "baseURL": "http://localhost:4001",
-        "apiKey": "xxx",
-        "compatibility": "compatible"
-      },
+      "api": "openai",
+      "name": "OpenRouter",
+      "baseURL": "https://openrouter.ai/api/v1",
       "models": {
-        "gpt-5.4": {
-          "name": "gpt-5.4"
+        "deepseek/deepseek-v4-flash": {
+          "name": "deepseek/deepseek-v4-flash"
         }
       }
     }
