@@ -99,6 +99,7 @@ coral start -c task.yaml run.verbose=true run.ui=true           # Verbose + dash
 coral start -c task.yaml run.session=local                      # No tmux session
 coral resume                                      # Resume latest run (sessions restored)
 coral resume -i "Try greedy approaches"           # Inject an instruction at resume
+coral resume --from <hash> -i "Continue this fork" # Reset an agent to an attempt, then inject instruction
 coral stop [--all]                                # Stop one or all active runs
 coral status                                      # Agent health + leaderboard
 
@@ -150,6 +151,7 @@ uv run ruff format .
    - `skills.py` — `SKILL.md` discovery
    - `checkpoint.py` — `git init` + lock-protected commits inside `.coral/public/` so agents can browse the history of shared state
    - `heartbeat.py` — per-agent action storage
+   - `steering.py` — stopped-run dashboard steering queue drained by `coral resume`
 
 6. **Heartbeat actions** (`coral/agent/heartbeat.py`): each agent has a list of `HeartbeatAction`s with `trigger ∈ {"interval", "plateau"}`. Defaults: `reflect` every 1 eval, `consolidate` every 10 (global), `pivot` after 5 plateau evals, `lint_wiki` every 10 (global). Edit at runtime with `coral heartbeat set/remove/reset`.
 
