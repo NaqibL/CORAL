@@ -13,17 +13,5 @@
     "codesearch": "allow",
     "lsp": "allow",
     "skill": "allow"
-  },
-  "provider": {
-    "openrouter": {
-      "api": "openai",
-      "name": "OpenRouter",
-      "baseURL": "https://openrouter.ai/api/v1",
-      "models": {
-        "deepseek/deepseek-v4-flash": {
-          "name": "deepseek/deepseek-v4-flash"
-        }
-      }
-    }
   }
 }
