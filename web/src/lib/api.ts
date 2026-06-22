@@ -16,6 +16,25 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function postResponse<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = `API error: ${res.status}`;
+    try {
+      const payload = await res.json();
+      if (payload?.error) message = payload.error;
+    } catch {
+      // Keep the status-based message.
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
 /* Types */
 
 export interface Attempt {
@@ -27,6 +46,24 @@ export interface Attempt {
   parent_hash: string | null;
   timestamp: string;
   feedback: string;
+}
+
+export interface DagNode {
+  id: string;
+  parent: string | null;
+  is_root: boolean;
+  agent_id: string;
+  score: number | null;
+  status: string;
+  title: string;
+  timestamp: string;
+  is_best: boolean;
+  user_best?: boolean;
+}
+
+export interface DagResponse {
+  nodes: DagNode[];
+  edges: { from: string; to: string }[];
 }
 
 export interface Note {
@@ -74,6 +111,20 @@ export interface RunStatus {
   best_score: number | null;
   best_title: string | null;
   agents: AgentStatus[];
+}
+
+export interface SteeringAction {
+  id: string;
+  kind: "continue_from" | "mark_best";
+  hash: string;
+  instruction?: string;
+  created_at: string;
+  applied_at: string | null;
+}
+
+export interface SteeringResponse {
+  actions: SteeringAction[];
+  pending_count: number;
 }
 
 export interface LogEntry {
@@ -180,6 +231,10 @@ export interface TaskConfig {
 export const api = {
   config: () => get<TaskConfig>("/config"),
   attempts: () => get<Attempt[]>("/attempts"),
+  dag: () => get<DagResponse>("/dag"),
+  steering: () => get<SteeringResponse>("/steer"),
+  steer: (body: { kind: "continue_from"; hash: string; instruction?: string } | { kind: "mark_best"; hash: string }) =>
+    postResponse<{ action: SteeringAction | { kind: "mark_best"; hash: string; applied: boolean } }>("/steer", body),
   leaderboard: (top = 20) => get<Attempt[]>(`/leaderboard?top=${top}`),
   attempt: (hash: string) => get<Attempt>(`/attempts/${hash}`),
   agentAttempts: (id: string) => get<Attempt[]>(`/attempts/agent/${id}`),

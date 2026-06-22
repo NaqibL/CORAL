@@ -18,6 +18,18 @@ def _coral_dir(request: Request) -> Path:
     return request.app.state.coral_dir
 
 
+def _run_is_alive(coral_dir: Path) -> bool:
+    pid_file = coral_dir / "public" / "manager.pid"
+    if pid_file.exists():
+        try:
+            pid = int(pid_file.read_text().strip())
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError, ValueError):
+            pass
+    return is_docker_run_alive(coral_dir)
+
+
 async def get_config(request: Request) -> JSONResponse:
     """GET /api/config — return the run configuration."""
     config_path = _coral_dir(request) / "config.yaml"
@@ -88,6 +100,106 @@ async def get_agent_attempts(request: Request) -> JSONResponse:
     agent_id = request.path_params["id"]
     attempts = _get_agent_attempts(str(_coral_dir(request)), agent_id)
     return JSONResponse([a.to_dict() for a in attempts])
+
+
+async def get_dag(request: Request) -> JSONResponse:
+    """GET /api/dag — experiment lineage as nodes + edges.
+
+    The DAG is reconstructed from attempt ``parent_hash`` links (which come from
+    git parentage at eval time). Attempts whose parent is not itself an attempt
+    — e.g. the pre-run baseline commit — become roots (``parent: null``).
+    Aggregates across islands so the whole team's lineage is shown.
+    """
+    from coral.hub.attempts import _read_all_island_attempts
+    from coral.hub.attempts import get_leaderboard as _get_leaderboard
+
+    coral_dir = _coral_dir(request)
+    attempts = _read_all_island_attempts(coral_dir)
+    known = {a.commit_hash for a in attempts}
+
+    best_hash: str | None = None
+    user_best_hash: str | None = None
+    top = _get_leaderboard(str(coral_dir), top_n=1, direction=_direction(request))
+    if top:
+        best_hash = top[0].commit_hash
+    for attempt in attempts:
+        if attempt.metadata.get("user_best") is True:
+            user_best_hash = attempt.commit_hash
+            break
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    for a in sorted(attempts, key=lambda x: x.timestamp):
+        parent = a.parent_hash if a.parent_hash in known else None
+        nodes.append(
+            {
+                "id": a.commit_hash,
+                "parent": parent,
+                "is_root": parent is None,
+                "agent_id": a.agent_id,
+                "score": a.score,
+                "status": a.status,
+                "title": a.title,
+                "timestamp": a.timestamp,
+                "is_best": a.commit_hash == (user_best_hash or best_hash),
+                "user_best": a.commit_hash == user_best_hash,
+            }
+        )
+        if parent is not None:
+            edges.append({"from": parent, "to": a.commit_hash})
+
+    return JSONResponse({"nodes": nodes, "edges": edges})
+
+
+async def get_steering(request: Request) -> JSONResponse:
+    """GET /api/steer — list pending steer-on-resume actions."""
+    from coral.hub.steering import read_pending
+
+    actions = [a.to_dict() for a in read_pending(_coral_dir(request))]
+    return JSONResponse({"actions": actions, "pending_count": len(actions)})
+
+
+async def post_steer(request: Request) -> JSONResponse:
+    """POST /api/steer — queue or apply dashboard steering actions."""
+    from coral.hub.attempts import set_user_best
+    from coral.hub.steering import ContinueFromAction, enqueue
+
+    coral_dir = _coral_dir(request)
+    if _run_is_alive(coral_dir):
+        return JSONResponse({"error": "stop the run to steer"}, status_code=409)
+
+    body = await request.json()
+    kind = body.get("kind")
+    commit_hash = body.get("hash")
+    if not isinstance(commit_hash, str) or not commit_hash.strip():
+        return JSONResponse({"error": "hash is required"}, status_code=400)
+    commit_hash = commit_hash.strip()
+
+    if kind == "continue_from":
+        instruction = body.get("instruction", "")
+        if not isinstance(instruction, str):
+            return JSONResponse({"error": "instruction must be a string"}, status_code=400)
+        action = enqueue(
+            coral_dir,
+            ContinueFromAction(hash=commit_hash, instruction=instruction.strip()),
+        )
+        return JSONResponse({"action": action.to_dict()})
+
+    if kind == "mark_best":
+        attempt = set_user_best(coral_dir, commit_hash)
+        if attempt is None:
+            return JSONResponse({"error": "attempt not found"}, status_code=404)
+        return JSONResponse(
+            {
+                "action": {
+                    "kind": "mark_best",
+                    "hash": commit_hash,
+                    "applied": True,
+                }
+            }
+        )
+
+    return JSONResponse({"error": "unknown steering action kind"}, status_code=400)
 
 
 async def get_notes(request: Request) -> JSONResponse:
@@ -255,17 +367,7 @@ def _enumerate_runs(results_dir: Path, current_coral_dir: Path) -> dict:
                 continue
 
             # Check manager status
-            pid_file = coral_dir / "public" / "manager.pid"
-            status = "stopped"
-            if pid_file.exists():
-                try:
-                    pid = int(pid_file.read_text().strip())
-                    os.kill(pid, 0)
-                    status = "running"
-                except (ProcessLookupError, PermissionError, ValueError):
-                    pass
-            if status == "stopped" and is_docker_run_alive(coral_dir):
-                status = "running"
+            status = "running" if _run_is_alive(coral_dir) else "stopped"
 
             # Count attempts across every view root. In multi-island mode the
             # attempts live in islands/<id>/attempts/ — public/attempts is
