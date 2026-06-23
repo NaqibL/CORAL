@@ -162,6 +162,19 @@ def submit_eval(
     # adjacent to the .coral_dir breadcrumb we discovered above.
     island_id = read_island_breadcrumb(coral_dir, breadcrumb_dir)
 
+    # Structural note deduplication — runs before git add so duplicate notes
+    # are never staged. Failures are silent; the eval always proceeds.
+    try:
+        from coral.hub._island import island_root
+        from coral.hub.knowledge_graph import deduplicate_notes
+
+        _notes_dir = island_root(coral_dir, island_id) / "notes"
+        _removed = deduplicate_notes(coral_dir, _notes_dir, config.agents.model)
+        if _removed:
+            logger.info("Knowledge graph removed %d duplicate note(s): %s", len(_removed), _removed)
+    except Exception:
+        logger.debug("Note deduplication skipped", exc_info=True)
+
     # Producer-side queue cap: refuse to commit when this agent already has
     # `max_pending_per_agent` ungraded submissions in flight. The grader is
     # serial; without this cap, a slow grader plus a fast agent piles up
