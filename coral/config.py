@@ -252,6 +252,7 @@ class RunConfig:
     ui: bool = False
     session: str = "tmux"  # "local", "tmux", or "docker"
     docker_image: str = ""  # empty = auto-build from project Dockerfile
+    max_evals: int = 0  # stop after this many global evals (0 = no limit)
 
 
 @dataclass

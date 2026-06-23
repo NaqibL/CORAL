@@ -2016,6 +2016,14 @@ class AgentManager:
             # config off): should_run() short-circuits without scanning disk.
             self._maybe_run_migration_cycle()
 
+            # Stop after max_evals global evals if a limit is configured.
+            max_evals = getattr(self.config.run, "max_evals", 0)
+            if max_evals > 0 and self._get_eval_count() >= max_evals:
+                if self.verbose:
+                    print(f"\n[coral] Reached max_evals={max_evals}, stopping run.")
+                self.stop_all()
+                break
+
             # Check for dead agents (max-turns exit, crash, etc.)
             for i, handle in enumerate(self.handles):
                 if not handle.alive and self._running:
