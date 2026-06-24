@@ -401,19 +401,85 @@ Task6.md                      # Pokémon TCG Pocket full design doc
 assignment/README.md          # This file
 ```
 
-## Setup
+## Replication
+
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) — Python package manager
+- [OpenCode](https://opencode.ai) CLI — agent runtime (`npm install -g opencode-ai` or see opencode docs)
+- An [OpenRouter](https://openrouter.ai) API key set as `OPENROUTER_API_KEY`
+- All runs were done on **WSL (Ubuntu)**; commands below assume a Linux shell
 
 ```bash
-# Install dependencies
+# Install Python dependencies
 uv sync --extra dev
 
-# Verify CORAL is working
+# Verify
 uv run coral --help
+```
 
-# Run a task (WSL)
+### Task 1 — Circle Packing
+
+```bash
+uv run coral start -c examples/circle_packing/task_claude.yaml \
+  run.session=local
+```
+
+Uses `claude_code` runtime with `claude-haiku-4-5-20251001`. Results land in `results/circle-packing/<timestamp>/`.
+
+### Tasks 2 & 3 — TSP pr1002 (full CORAL)
+
+```bash
 uv run coral start -c examples/tsp_pr1002/task.yaml \
   agents.model=openrouter/deepseek/deepseek-v3-0324 \
   agents.runtime=opencode \
   run.session=local \
   run.max_evals=20
+```
+
+**Condition A — no knowledge sharing:**
+```bash
+uv run coral start -c examples/tsp_pr1002/task.yaml \
+  agents.model=openrouter/deepseek/deepseek-v3-0324 \
+  agents.runtime=opencode \
+  run.session=local \
+  run.max_evals=20 \
+  sharing.notes=false sharing.skills=false
+```
+
+**Condition B — no heartbeats:**
+```bash
+uv run coral start -c examples/tsp_pr1002/task.yaml \
+  agents.model=openrouter/deepseek/deepseek-v3-0324 \
+  agents.runtime=opencode \
+  run.session=local \
+  run.max_evals=20 \
+  'agents.heartbeat=[]'
+```
+
+### Task 4 — Modified CORAL (with dedup)
+
+The dedup pipeline is active by default once the code is installed — no extra flags needed. It runs automatically on every `coral eval` call.
+
+Key files:
+- `coral/hub/knowledge_graph.py` — the three-layer dedup pipeline
+- `coral/hooks/post_commit.py` — where `deduplicate_notes()` is called (search for `knowledge_graph`)
+
+Run identically to full CORAL above; dedup output logs to `.coral/private/knowledge_graph.json` in the run directory.
+
+### Reading results
+
+`coral log` has a known issue on Windows (`os.kill` signal handling). Read attempt JSONs directly:
+
+```bash
+# Best score from a run
+python3 -c "
+import json, glob
+files = glob.glob('results/travelling-salesman-problem-pr1002/<timestamp>/.coral/public/attempts/*.json')
+scores = [json.load(open(f)).get('score') for f in files]
+print('best:', max(s for s in scores if s))
+"
+
+# Task 4 dedup log
+cat results/travelling-salesman-problem-pr1002/<timestamp>/.coral/private/knowledge_graph.json
 ```
