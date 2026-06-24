@@ -1,4 +1,6 @@
 
+> **Alpha Z Technical Assessment submission** — see [`assignment/README.md`](assignment/README.md) for all task results, code, and write-ups (Tasks 1–6).
+
 <div align="center">
 
 <img src="assets/logo.png" alt="CORAL logo — multi-agent autonomous coding infrastructure" width="360">
