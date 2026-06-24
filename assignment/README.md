@@ -3,7 +3,7 @@
 Repository: fork of [Human-Agent-Society/CORAL](https://github.com/Human-Agent-Society/CORAL)
 
 All runs were executed locally on WSL (Ubuntu on Windows 10).  
-Agent runtime: OpenCode + `openrouter/deepseek/deepseek-v3-0324` (deepseek-flash) via OpenRouter.  
+Agent runtime: OpenCode + `openrouter/deepseek/deepseek-v4-flash` via OpenRouter.  
 Results live in `~/CORAL/results/` on WSL; code changes are in this repository.
 
 ---
@@ -431,7 +431,7 @@ Uses `claude_code` runtime with `claude-haiku-4-5-20251001`. Results land in `re
 
 ```bash
 uv run coral start -c examples/tsp_pr1002/task.yaml \
-  agents.model=openrouter/deepseek/deepseek-v3-0324 \
+  agents.model=openrouter/deepseek/deepseek-v4-flash \
   agents.runtime=opencode \
   run.session=local \
   run.max_evals=20
@@ -440,7 +440,7 @@ uv run coral start -c examples/tsp_pr1002/task.yaml \
 **Condition A — no knowledge sharing:**
 ```bash
 uv run coral start -c examples/tsp_pr1002/task.yaml \
-  agents.model=openrouter/deepseek/deepseek-v3-0324 \
+  agents.model=openrouter/deepseek/deepseek-v4-flash \
   agents.runtime=opencode \
   run.session=local \
   run.max_evals=20 \
@@ -450,7 +450,7 @@ uv run coral start -c examples/tsp_pr1002/task.yaml \
 **Condition B — no heartbeats:**
 ```bash
 uv run coral start -c examples/tsp_pr1002/task.yaml \
-  agents.model=openrouter/deepseek/deepseek-v3-0324 \
+  agents.model=openrouter/deepseek/deepseek-v4-flash \
   agents.runtime=opencode \
   run.session=local \
   run.max_evals=20 \
