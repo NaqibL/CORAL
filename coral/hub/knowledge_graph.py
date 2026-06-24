@@ -67,7 +67,7 @@ def _word_counts(text: str) -> Counter:
 
 
 def _is_user_note(p: Path) -> bool:
-    return p.name != "notes.md" and not p.name.startswith("_")
+    return p.name not in ("notes.md", "index.md") and not p.name.startswith("_")
 
 
 # ---------------------------------------------------------------------------
